@@ -18,5 +18,19 @@ async function bootstrap() {
   console.log(`Orchestrator health check listening on port ${port}`);
 }
 
-
-bootstrap();
+// A half-started orchestrator is worse than a dead one: the Temporal workers
+// register but nothing supervises them, so posts sit in QUEUE forever with no
+// error anywhere. Exit non-zero on any bootstrap failure so pm2 restarts us and
+// the container healthcheck can see it.
+bootstrap().catch((err) => {
+  if (err?.code === 'EADDRINUSE') {
+    console.error(
+      `Orchestrator bootstrap failed: port ${
+        process.env.ORCHESTRATOR_PORT || 3002
+      } is already in use - another orchestrator instance is still running.`
+    );
+  } else {
+    console.error('Orchestrator bootstrap failed:', err);
+  }
+  process.exit(1);
+});
