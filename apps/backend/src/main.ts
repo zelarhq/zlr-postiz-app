@@ -77,8 +77,18 @@ async function start() {
     checkConfiguration(); // Do this last, so that users will see obvious issues at the end of the startup log without having to scroll up.
 
     Logger.log(`🚀 Backend is running on: http://localhost:${port}`);
-  } catch (e) {
-    Logger.error(`Backend failed to start on port ${port}`, e);
+  } catch (e: any) {
+    // Swallowing this leaves a live process with no listener: pm2 reports the
+    // app as "online" while nginx 502s every request forever. Exit instead so
+    // the supervisor restarts us and the container healthcheck can see it.
+    if (e?.code === 'EADDRINUSE') {
+      Logger.error(
+        `Backend failed to start: port ${port} is already in use - another backend instance is still running.`
+      );
+    } else {
+      Logger.error(`Backend failed to start on port ${port}`, e);
+    }
+    process.exit(1);
   }
 }
 
